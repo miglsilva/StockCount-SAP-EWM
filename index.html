@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>Contagem de Inventário · EWM</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+</head>
+<body>
+<div id="app">
+
+  <header class="topbar">
+    <div class="brand"><b data-i18n="brand_title">Contagem EWM</b><span id="masterStatus">…</span></div>
+    <div class="right">
+      <select id="langSwitch" aria-label="Idioma / Language"></select>
+      <div class="stat">📋 <b id="lineCount">0</b> <span data-i18n="stat_lines_suffix">linhas</span></div>
+    </div>
+  </header>
+
+  <main id="view-root">
+
+    <!-- ===================== CONTAGEM ===================== -->
+    <section class="screen" data-screen="count" id="screen-count">
+      <h1 class="page-title" data-i18n="count_title">Contagem</h1>
+      <p class="page-sub" data-i18n="count_subtitle">Segue os 4 passos para registar uma posição contada.</p>
+
+      <div class="stepper">
+        <div class="step-dot" data-dot="1">1</div><div class="step-line" data-line="1"></div>
+        <div class="step-dot" data-dot="2">2</div><div class="step-line" data-line="2"></div>
+        <div class="step-dot" data-dot="3">3</div><div class="step-line" data-line="3"></div>
+        <div class="step-dot" data-dot="4">4</div>
+      </div>
+      <div class="step-labels">
+        <span data-i18n="step_label_material">Material</span>
+        <span data-i18n="step_label_pack1">1ª emb.</span>
+        <span data-i18n="step_label_pack2">2ª emb.</span>
+        <span data-i18n="step_label_incomplete">Incompletos</span>
+      </div>
+
+      <!-- STEP 1 -->
+      <div class="step-panel" data-step="1">
+        <div class="card">
+          <h3><span data-i18n="step1_card_title">🔎 Identificar posição</span></h3>
+          <div class="scan-toggle">
+            <button class="btn btn-structure" id="btnStartScan" type="button" data-i18n="btn_start_scan">📷 Iniciar câmara</button>
+            <button class="btn btn-ghost" id="btnSwitchCam" type="button" style="display:none;width:auto;flex:0 0 auto;padding:14px 16px;">🔄</button>
+          </div>
+          <div id="reader" style="display:none;"></div>
+          <p class="field-hint" id="scanHint" data-i18n="scan_hint_default">Aponta a câmara à etiqueta. Assim que reconhecer material, lote ou posição, preenche automaticamente os campos abaixo.</p>
+
+          <div class="divider-or" data-i18n="divider_or">ou preenche manualmente</div>
+
+          <label class="field-label"><span data-i18n="label_bin">Posição (Storage Bin)</span><span id="binOptTag"></span></label>
+          <div class="suggest-list">
+            <div class="input-wrap"><input type="text" id="inBin" data-i18n-ph="placeholder_bin" placeholder="Ex: A-01-02-03" autocomplete="off"><span class="field-status" id="statusBin"></span></div>
+            <div class="suggest-box" id="suggestBin" style="display:none;"></div>
+          </div>
+
+          <label class="field-label" data-i18n="label_material">Material</label>
+          <div class="suggest-list">
+            <div class="input-wrap"><input type="text" id="inMaterial" data-i18n-ph="placeholder_material" placeholder="Código do material" autocomplete="off"><span class="field-status" id="statusMaterial"></span></div>
+            <div class="suggest-box" id="suggestMaterial" style="display:none;"></div>
+          </div>
+
+          <label class="field-label" data-i18n="label_uom">UoM</label>
+          <div class="suggest-list">
+            <div class="input-wrap"><input type="text" id="inUom" data-i18n-ph="placeholder_uom" placeholder="Ex: PC, KG, L" autocomplete="off"><span class="field-status" id="statusUom"></span></div>
+            <div class="suggest-box" id="suggestUom" style="display:none;"></div>
+          </div>
+
+          <label class="field-label"><span data-i18n="label_batch">Batch / Lote</span><span id="batchOptTag"></span></label>
+          <div class="suggest-list">
+            <div class="input-wrap"><input type="text" id="inBatch" data-i18n-ph="placeholder_batch" placeholder="Nº de lote" autocomplete="off"><span class="field-status" id="statusBatch"></span></div>
+            <div class="suggest-box" id="suggestBatch" style="display:none;"></div>
+          </div>
+
+          <label class="field-label" data-i18n="label_external_hu">HU Externa</label>
+          <div class="input-wrap"><input type="text" id="inExternalHu" data-i18n-ph="placeholder_external_hu" placeholder="Código da HU externa" maxlength="18" autocomplete="off"></div>
+
+          <label class="field-label" data-i18n="label_warehouse">Warehouse</label>
+          <div class="input-wrap"><input type="text" id="inWarehouse" data-i18n-ph="placeholder_warehouse" placeholder="Ex: 1000" autocomplete="off"></div>
+
+          <div id="step1Banner"></div>
+        </div>
+        <div class="btn-row"><button class="btn btn-primary" id="btnStep1Next" type="button" data-i18n="btn_next">Seguinte →</button></div>
+      </div>
+
+      <!-- STEP 2 -->
+      <div class="step-panel" data-step="2" style="display:none;">
+        <div class="card">
+          <h3><span data-i18n="step2_card_title">📦 1ª unidade de embalagem</span></h3>
+          <p class="field-hint" data-i18n="step2_hint">Indica quanto contém cada unidade (na UoM definida no passo 1), o tipo de embalagem maior, e quantas unidades existem (ex: 3 bidões com 56 KG cada).</p>
+
+          <div class="checkbox-row"><input type="checkbox" id="chkNoPack1"><label for="chkNoPack1" data-i18n="chk_no_pack1">Sem 1ª unidade de embalagem nesta contagem</label></div>
+          <div id="pack1Fields">
+            <label class="field-label" data-i18n="label_pack_qty">Por unidade</label>
+            <div class="qty-stepper compact">
+              <button class="qty-btn" id="qty1Minus" type="button">−</button>
+              <input type="number" class="qty-input" id="qty1" value="0" min="0" step="0.01" inputmode="decimal">
+              <button class="qty-btn" id="qty1Plus" type="button">+</button>
+              <span class="qty-uom-badge" id="qty1UomBadge"></span>
+            </div>
+
+            <label class="field-label" data-i18n="label_pack_type">Tipo de embalagem</label>
+            <div class="segmented" id="seg1"></div>
+
+            <label class="field-label" data-i18n="label_pack_count">Quantas unidades?</label>
+            <div class="qty-stepper">
+              <button class="qty-btn" id="count1Minus" type="button">−</button>
+              <input type="number" class="qty-input" id="count1" value="0" min="0" step="1" inputmode="numeric">
+              <button class="qty-btn" id="count1Plus" type="button">+</button>
+            </div>
+          </div>
+        </div>
+        <div class="btn-row"><button class="btn btn-ghost" id="btnStep2Back" type="button" data-i18n="btn_back">← Voltar</button><button class="btn btn-primary" id="btnStep2Next" type="button" data-i18n="btn_next">Seguinte →</button></div>
+      </div>
+
+      <!-- STEP 3 -->
+      <div class="step-panel" data-step="3" style="display:none;">
+        <div class="card">
+          <h3><span data-i18n="step3_card_title">📦 2ª unidade de embalagem</span></h3>
+          <p class="field-hint" data-i18n="step3_hint">Se existir uma segunda unidade dentro da anterior (ex: caixas soltas), indica o tipo de embalagem e quantas existem. Deixa a marcação "sem 2ª unidade" se não aplicável.</p>
+          <div class="checkbox-row"><input type="checkbox" id="chkNoPack2"><label for="chkNoPack2" data-i18n="chk_no_pack2">Sem 2ª unidade de embalagem nesta contagem</label></div>
+          <div id="pack2Fields">
+            <label class="field-label" data-i18n="label_pack_type">Tipo de embalagem</label>
+            <div class="segmented" id="seg2"></div>
+
+            <label class="field-label" data-i18n="label_pack_count">Quantas unidades?</label>
+            <div class="qty-stepper">
+              <button class="qty-btn" id="count2Minus" type="button">−</button>
+              <input type="number" class="qty-input" id="count2" value="0" min="0" step="1" inputmode="numeric">
+              <button class="qty-btn" id="count2Plus" type="button">+</button>
+            </div>
+          </div>
+        </div>
+        <div class="btn-row"><button class="btn btn-ghost" id="btnStep3Back" type="button" data-i18n="btn_back">← Voltar</button><button class="btn btn-primary" id="btnStep3Next" type="button" data-i18n="btn_next">Seguinte →</button></div>
+      </div>
+
+      <!-- STEP 4 -->
+      <div class="step-panel" data-step="4" style="display:none;">
+        <div class="card">
+          <h3><span data-i18n="step4_card_title">🧩 Unidades incompletas</span></h3>
+          <div class="checkbox-row"><input type="checkbox" id="chkIncomplete"><label for="chkIncomplete" data-i18n="chk_incomplete">Existem unidades incompletas nesta posição</label></div>
+          <div id="incompleteFields" style="display:none;">
+            <label class="field-label" data-i18n="label_incomplete_type">Tipo de embalagem</label>
+            <div class="segmented" id="segIncomplete"></div>
+
+            <label class="field-label" data-i18n="label_incomplete_count">Quantas unidades incompletas?</label>
+            <div class="qty-stepper">
+              <button class="qty-btn" id="incompleteCountMinus" type="button">−</button>
+              <input type="number" class="qty-input" id="inIncompleteCount" value="0" min="0" max="18" inputmode="numeric">
+              <button class="qty-btn" id="incompleteCountPlus" type="button">+</button>
+            </div>
+            <div id="incompleteUnitsList"></div>
+            <label class="field-label" data-i18n="label_notes">Notas (opcional)</label>
+            <input type="text" id="inNotes" data-i18n-ph="placeholder_notes" placeholder="Observações sobre esta contagem">
+          </div>
+        </div>
+        <div class="card" id="summaryCard">
+          <h3><span data-i18n="summary_title">✅ Resumo da linha</span></h3>
+          <div id="summaryContent" style="font-family:var(--font-mono);font-size:13px;line-height:1.9;"></div>
+        </div>
+        <div class="btn-row"><button class="btn btn-ghost" id="btnStep4Back" type="button" data-i18n="btn_back">← Voltar</button><button class="btn btn-primary" id="btnConfirmLine" type="button" data-i18n="btn_confirm_line">✓ Confirmar linha</button></div>
+      </div>
+
+    </section>
+
+    <!-- ===================== LISTA ===================== -->
+    <section class="screen" data-screen="list" id="screen-list">
+      <h1 class="page-title" data-i18n="list_title">Linhas contadas</h1>
+      <p class="page-sub" data-i18n="list_subtitle">Revê, apaga ou exporta as contagens desta sessão.</p>
+
+      <div class="export-panel">
+        <h3 style="font-family:var(--font-display);font-size:14.5px;margin:0 0 4px;" data-i18n="export_title">⬇ Exportar</h3>
+        <p class="field-hint" style="margin-top:0;" data-i18n="export_hint">Formato provisório (v1) — ajustamos ao ficheiro modelo SAP EWM assim que o partilhares.</p>
+        <div class="radio-row">
+          <label class="radio-opt"><input type="radio" name="delim" value=";" checked> .csv (;)</label>
+          <label class="radio-opt"><input type="radio" name="delim" value="tab"> .txt (tab)</label>
+        </div>
+        <textarea class="preview-box" id="exportPreview" readonly></textarea>
+        <div class="btn-row">
+          <button class="btn btn-ghost" id="btnClearAll" type="button" data-i18n="btn_clear_all">🗑 Limpar tudo</button>
+          <button class="btn btn-primary" id="btnDownload" type="button" data-i18n="btn_download">Descarregar ficheiro</button>
+        </div>
+      </div>
+
+      <div id="listContainer"></div>
+    </section>
+
+    <!-- ===================== DADOS MESTRE ===================== -->
+    <section class="screen" data-screen="setup" id="screen-setup">
+      <h1 class="page-title" data-i18n="setup_title">Dados mestre</h1>
+      <p class="page-sub" data-i18n="setup_subtitle">Carrega os ficheiros CSV ou Excel com as listas de materiais, batches e storage bins. Ficam guardados neste dispositivo.</p>
+
+      <div class="upload-card">
+        <div class="head"><h3 data-i18n="warehouse_config_title">Warehouse</h3></div>
+        <p class="field-hint" style="margin-top:2px;" data-i18n="warehouse_config_hint">Valor fixo, usado em todas as linhas contadas neste dispositivo.</p>
+        <div class="input-wrap" style="margin-top:12px;"><input type="text" id="inWarehouseSetting" data-i18n-ph="placeholder_warehouse" placeholder="Ex: 1000" autocomplete="off"></div>
+        <div class="btn-row"><button class="btn btn-primary" id="btnSaveWarehouse" type="button" data-i18n="btn_save_warehouse">Guardar warehouse</button></div>
+      </div>
+
+      <div class="upload-card" data-kind="materials">
+        <div class="head"><h3 data-i18n="card_materials_title">Materiais</h3><span class="count-badge zero" id="badge-materials">0</span></div>
+        <div class="file-drop"><input type="file" accept=".csv,.xlsx,.xls" data-kind="materials"><span id="fileLabel-materials" data-i18n="upload_placeholder">Toca para carregar ficheiro (.csv / .xlsx)</span></div>
+        <div class="mapping-panel" id="mapping-materials" style="display:none;"></div>
+      </div>
+
+      <div class="upload-card" data-kind="batches">
+        <div class="head"><h3 data-i18n="card_batches_title">Batches / Lotes</h3><span class="count-badge zero" id="badge-batches">0</span></div>
+        <div class="file-drop"><input type="file" accept=".csv,.xlsx,.xls" data-kind="batches"><span id="fileLabel-batches" data-i18n="upload_placeholder">Toca para carregar ficheiro (.csv / .xlsx)</span></div>
+        <div class="mapping-panel" id="mapping-batches" style="display:none;"></div>
+      </div>
+
+      <div class="upload-card" data-kind="bins">
+        <div class="head"><h3 data-i18n="card_bins_title">Storage Bins</h3><span class="count-badge zero" id="badge-bins">0</span></div>
+        <div class="file-drop"><input type="file" accept=".csv,.xlsx,.xls" data-kind="bins"><span id="fileLabel-bins" data-i18n="upload_placeholder">Toca para carregar ficheiro (.csv / .xlsx)</span></div>
+        <div class="mapping-panel" id="mapping-bins" style="display:none;"></div>
+      </div>
+
+      <div class="upload-card">
+        <div class="head"><h3 data-i18n="pack_config_title">Tipos de embalagem</h3></div>
+        <p class="field-hint" style="margin-top:2px;" data-i18n="pack_config_hint">Estes são os tipos disponíveis nos passos 2 e 3 da contagem (para o idioma atual). Adiciona, remove ou renomeia conforme precisares.</p>
+        <div class="pack-config-list" id="packConfigList"></div>
+        <div class="btn-row">
+          <button class="btn btn-ghost" id="btnAddPackType" type="button" data-i18n="btn_add_pack_type">+ Adicionar tipo</button>
+          <button class="btn btn-primary" id="btnSavePackTypes" type="button" data-i18n="btn_save_pack_types">Guardar tipos</button>
+        </div>
+      </div>
+
+      <div class="upload-card">
+        <div class="head"><h3 data-i18n="uom_config_title">Unidades de Medida (UoM)</h3></div>
+        <p class="field-hint" style="margin-top:2px;" data-i18n="uom_config_hint">Estes são os únicos valores possíveis no campo UoM da contagem (para o idioma atual). Adiciona, remove ou renomeia conforme precisares.</p>
+        <div class="pack-config-list" id="uomConfigList"></div>
+        <div class="btn-row">
+          <button class="btn btn-ghost" id="btnAddUomType" type="button" data-i18n="btn_add_uom_type">+ Adicionar UoM</button>
+          <button class="btn btn-primary" id="btnSaveUomTypes" type="button" data-i18n="btn_save_uom_types">Guardar UoM</button>
+        </div>
+      </div>
+
+      <div class="upload-card">
+        <div class="head"><h3 data-i18n="required_fields_title">Campos obrigatórios</h3></div>
+        <p class="field-hint" style="margin-top:2px;" data-i18n="required_fields_hint">Desliga para tornar o campo opcional no passo 1 da contagem.</p>
+        <div class="checkbox-row"><input type="checkbox" id="chkOptionalBin"><label for="chkOptionalBin" data-i18n="chk_optional_bin">Storage Bin é opcional</label></div>
+        <div class="checkbox-row"><input type="checkbox" id="chkOptionalBatch"><label for="chkOptionalBatch" data-i18n="chk_optional_batch">Batch é opcional</label></div>
+      </div>
+
+      <div class="upload-card">
+        <div class="head"><h3 data-i18n="backup_card_title">Cópia de segurança</h3></div>
+        <p class="field-hint" style="margin-top:2px;" data-i18n="backup_hint">Os dados ficam guardados automaticamente neste dispositivo. Usa isto para levar os dados para outro dispositivo, ou como backup manual.</p>
+        <div class="btn-row" style="margin-top:12px;">
+          <button class="btn btn-ghost" id="btnBackupExport" type="button" data-i18n="btn_backup_export">⬇ Exportar (.json)</button>
+          <div class="file-drop" style="flex:1;margin-top:0;padding:14px 10px;">
+            <input type="file" accept=".json" id="btnBackupImport">
+            <span data-i18n="btn_backup_import">⬆ Importar (.json)</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="banner info"><span data-i18n="info_https_banner">ℹ️ Para a câmara funcionar em todos os dispositivos, esta app precisa de ser aberta via HTTPS (ou localhost). A abrir diretamente o ficheiro no telemóvel, alguns browsers bloqueiam o acesso à câmara — usa nesse caso o preenchimento manual.</span></div>
+      <div class="banner info"><span data-i18n="info_config_banner">⚙️ Idiomas e tipos de embalagem também podem ser definidos no ficheiro config.json, publicado ao lado deste ficheiro HTML.</span></div>
+    </section>
+
+  </main>
+
+  <nav class="bottomnav">
+    <button class="nav-btn active" data-nav="count" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 7V4a1 1 0 0 1 1-1h3M17 3h3a1 1 0 0 1 1 1v3M21 17v3a1 1 0 0 1-1 1h-3M7 21H4a1 1 0 0 1-1-1v-3"/><rect x="8" y="8" width="8" height="8" rx="1"/></svg>
+      <span data-i18n="nav_count">Contagem</span>
+    </button>
+    <button class="nav-btn" data-nav="list" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+      <span data-i18n="nav_list">Lista</span>
+    </button>
+    <button class="nav-btn" data-nav="setup" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.66 3.58 3 8 3s8-1.34 8-3V5M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3"/></svg>
+      <span data-i18n="nav_setup">Dados</span>
+    </button>
+  </nav>
+
+  <div class="toast" id="toast"></div>
+</div>
+
+<script src="/config.js"></script>
+<script src="/state.js"></script>
+<script src="/storage.js"></script>
+<script src="/scanner.js"></script>
+<script src="/count-flow.js"></script>
+<script src="/list-export.js"></script>
+<script src="/master-data.js"></script>
+<script src="/packaging-config.js"></script>
+<script src="/uom-config.js"></script>
+<script src="/main.js"></script>
+</body>
+</html>
